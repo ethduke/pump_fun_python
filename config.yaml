@@ -7,8 +7,17 @@ constants:
   assoc_token_acc_prog: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
   event_authority: "Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1"
   pump_fun_program: "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
+  pump_swap_program: "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"
+  event_authority_pump_swap: "GS4CU59F31iL7aR2Q8zVS8DRrcRnXX1yjQ66TqNVQnaR"
+  global_config_pump_swap: "ADyA8hdefvWN2dbGGWFotbzWxrAvLW83WG6QCVXvJKqw"
+  protocol_fee_recipient: "7VtfL8fvgNfhz17qKRMjzQEXgbdpnHHHQRh54R9jP2RJ"
+  protocol_fee_recipient_ata: "7GFUN3bWzJMKMRZ34JLsvcqdssDbXnp589SiE33KVwcC"
+  token_2022_program: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  create_pool_discrim: "e992d18ecf6840bc"
+  buy_instr_discrim: "66063d1201daebea"
+  sell_instr_discrim: "33e685a4017f83ad"
 
-# Helius configuration
+# Helius configuration  
 helius:
   wss_url: "https://mainnet.helius-rpc.com/?api-key="
   rpc_url: "https://mainnet.helius-rpc.com/?api-key="
@@ -18,9 +27,20 @@ helius:
 solana:
   unit_budget: 400000  # Increase from 150000 to 400000 for pump.fun transactions
   unit_price: 2000000  # Increase from 1000000 to 2000000 for better priority
+  pool_compute_budget: 200000
+  unit_compute_budget: 200000
 
 # Tokens configuration  
 tokens:
   wsol:
     address: "So11111111111111111111111111111111111111112"
     decimal: 9
+
+lamports_per_sol: 1000000000
+
+create_pool_discrim: "e992d18ecf6840bc"
+buy_instr_discrim: "66063d1201daebea"
+sell_instr_discrim: "33e685a4017f83ad"
+withdraw_instr_discrim: "b712469c946da122"
+deposit_instr_discrim: "f223c68952e1f2b6"
+lamports_per_sol: 1000000000

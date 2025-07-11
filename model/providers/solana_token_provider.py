@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from typing import Optional
 from solders.pubkey import Pubkey  # type: ignore
 from solana.rpc.commitment import Processed
@@ -24,7 +25,7 @@ class SolanaTokenProvider(TokenProvider):
         self._payer = self._provider.payer
         logger.info(f"Initialized SolanaTokenProvider with payer: {self._payer.pubkey()}")
     
-    def get_token_balance(self, mint: str | Pubkey) -> Optional[float]:
+    async def get_token_balance(self, mint: str | Pubkey) -> Optional[float]:
         """Get token balance for a specific mint.
         
         Args:

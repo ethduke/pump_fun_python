@@ -147,6 +147,10 @@ class Config:
         """Get PumpFun program address"""
         return Pubkey.from_string(self._config['constants']['pump_fun_program'])
     
+    @property
+    def PUMP_SWAP_PROGRAM(self) -> Pubkey:
+        """Get PumpSwap program address"""
+        return Pubkey.from_string(self._config['constants']['pump_swap_program'])
 
     @property
     def GLOBAL(self) -> Pubkey:

@@ -1,6 +1,6 @@
 import json
-import time
 import logging
+import asyncio
 from solana.rpc.commitment import Confirmed
 from solders.signature import Signature # type: ignore
 from ..interfaces.transaction_provider import TransactionProvider
@@ -22,7 +22,7 @@ class SolanaTransactionProvider(TransactionProvider):
         self._client = self._provider.rpc
         logger.info("Initialized SolanaTransactionProvider")
     
-    def confirm_transaction(
+    async def confirm_transaction(
         self,
         signature: Signature,
         max_retries: int = 20,
@@ -50,6 +50,13 @@ class SolanaTransactionProvider(TransactionProvider):
                     max_supported_transaction_version=0
                 )
                 
+                # Check if transaction was found
+                if txn_res.value is None:
+                    logger.debug(f"Transaction not found yet (attempt {retries})")
+                    retries += 1
+                    await asyncio.sleep(retry_interval)
+                    continue
+                
                 txn_json = json.loads(txn_res.value.transaction.meta.to_json())
                 
                 if txn_json['err'] is None:
@@ -60,10 +67,14 @@ class SolanaTransactionProvider(TransactionProvider):
                 if txn_json['err']:
                     logger.error(f"Transaction failed with error: {txn_json['err']}")
                     return False
+                else:
+                    # Transaction exists but not confirmed yet, retry
+                    retries += 1
+                    await asyncio.sleep(retry_interval)
             except Exception as e:
                 logger.warning(f"Awaiting confirmation (attempt {retries}): {e}")
                 retries += 1
-                time.sleep(retry_interval)
+                await asyncio.sleep(retry_interval)
         
         logger.error(f"Max retries ({max_retries}) reached. Transaction confirmation failed.")
         return False 

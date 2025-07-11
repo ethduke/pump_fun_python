@@ -82,13 +82,7 @@ def get_coin_data(mint_str: str) -> Optional[CoinData]:
     except Exception as e:
         print(e)
         return None
-
-def sol_for_tokens(sol_spent, sol_reserves, token_reserves):
-    new_sol_reserves = sol_reserves + sol_spent
-    new_token_reserves = (sol_reserves * token_reserves) / new_sol_reserves
-    token_received = token_reserves - new_token_reserves
-    return round(token_received)
-
+    
 def tokens_for_sol(tokens_to_sell, sol_reserves, token_reserves):
     new_token_reserves = token_reserves + tokens_to_sell
     new_sol_reserves = (sol_reserves * token_reserves) / new_token_reserves

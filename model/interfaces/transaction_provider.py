@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from solders.signature import Signature
+from solders.signature import Signature # type: ignore
 
 class TransactionProvider(ABC):
     """Abstract base class for transaction-related operations."""
     
     @abstractmethod
-    def confirm_transaction(
+    async def confirm_transaction(
         self,
         signature: Signature,
         max_retries: int = 20,

@@ -1,210 +1,230 @@
 #!/usr/bin/env python3
 """
-Pump.fun Trading Bot - Main Testing Script
+Pump.fun Trading Bot - Unified Trading Interface
 """
 
+import asyncio
 import logging
-import time
 import sys
 
-from model.pump_fun.bonding_curve.pump_fun import PumpFun
+from config import Config
+from model.pump_fun.unified_pump_fun import UnifiedPumpFun # type: ignore
 from model.providers.solana_provider import SolanaProvider
-from utils.coin_data import get_coin_data
-from utils.common_utils import get_token_balance
-from solders.pubkey import Pubkey # type: ignore
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Configure logging
 logging.basicConfig(
-    level=logging.WARNING,
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('pump_fun_trading.log'),
         logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)
 
-class PumpFunTester:
-    """A tester for pump.fun trading operations."""
+
+BUFFER_FEES_SOL = 0.01
+FEE_SOL = 0.0005
+DEFAULT_SLIPPAGE = 25
+LOSS_PERCENTAGE = 0.1
+PERCENTAGE_SELL = 100
+MIN_SOL_BALANCE = 0.02
+
+class SimplePumpTester:
+    """Simplified pump trading tester using unified interface"""
     
     def __init__(self):
         try:
+            self.config = Config()
             self.solana_provider = SolanaProvider.get_instance()
-            self.pump_fun = PumpFun()
+            self.trader = UnifiedPumpFun(self.solana_provider)
             self.payer_pubkey = self.solana_provider.payer.pubkey()
             print(f"Wallet: {self.payer_pubkey}")
         except Exception as e:
             logger.error(f"Failed to initialize: {e}")
             raise
     
-    def check_wallet_balance(self) -> float:
+    async def check_wallet_balance(self) -> float:
+        """Check SOL balance"""
         try:
-            balance = self.solana_provider.rpc.get_balance(self.payer_pubkey).value
+            balance_response = self.solana_provider.rpc.get_balance(self.payer_pubkey)
+            balance = balance_response.value
             sol_balance = balance / 1e9
             return sol_balance
         except Exception as e:
             logger.error(f"Failed to check wallet balance: {e}")
             return 0.0
     
-    def validate_mint_address(self, mint_str: str) -> bool:
-        try:
-            coin_data = get_coin_data(mint_str)
-            if not coin_data:
-                logger.error("Invalid mint or network issue")
-                return False
-            
-            if coin_data.complete:
-                print("⚠️ Token completed bonding curve")
-            
-            return True
-        except Exception as e:
-            logger.error(f"Error validating mint: {e}")
-            return False
-    
-    def get_token_balance_for_mint(self, mint_str: str) -> float:
-        try:
-            mint_pubkey = Pubkey.from_string(mint_str)
-            balance = get_token_balance(self.payer_pubkey, mint_pubkey)
-            return balance if balance is not None else 0.0
-        except Exception as e:
-            logger.error(f"Error getting token balance: {e}")
-            return 0.0
-    
-    def test_buy_operation(self, mint_str: str, sol_amount: float = 0.01, slippage: int = 15) -> bool:
-        print(f"Testing BUY: {sol_amount} SOL")
+    async def get_token_info(self, mint_str: str):
+        """Get and display token information"""
+        print(f"\n📊 Getting token info for: {mint_str}")
         
-        # Safety checks
-        sol_balance = self.check_wallet_balance()
-        if sol_balance < sol_amount + 0.005:
-            print(f"❌ Insufficient SOL. Need {sol_amount + 0.005:.4f}, have {sol_balance:.4f}")
+        info = await self.trader.get_token_info(mint_str)
+        
+        if not info["valid"]:
+            print(f"❌ Error: {info.get('error', 'Unknown error')}")
             return False
         
-        if not self.validate_mint_address(mint_str):
-            print("❌ Invalid mint address")
-            return False
+        print(f"   Name: {info.get('name', 'Unknown')}")
+        print(f"   Symbol: {info.get('symbol', 'Unknown')}")
+        print(f"   Trading venue: {'Bonding Curve (pump.fun)' if info['is_on_bonding_curve'] else 'PumpSwap DEX'}")
         
-        initial_token_balance = self.get_token_balance_for_mint(mint_str)
-        
-        try:
-            print("Executing buy...")
-            success = self.pump_fun.buy_bonding_curve(mint_str, sol_amount, slippage)
-            
-            if success:
-                time.sleep(3)
-                new_token_balance = self.get_token_balance_for_mint(mint_str)
-                token_received = new_token_balance - initial_token_balance
-                print(f"✅ Buy successful - Received: {token_received:.6f} tokens")
-                return True
+        if info['is_on_bonding_curve']:
+            print(f"   SOL reserves: {info.get('virtual_sol_reserves', 0) / 1e9:.4f}")
+            print(f"   Token reserves: {info.get('virtual_token_reserves', 0) / 1e6:.0f}")
+        else:
+            if info.get('pool_available'):
+                print(f"   Pool address: {info['pool_address']}")
+                print(f"   Pool type: {info['pool_type']}")
+                print(f"   SOL liquidity: {info.get('liquidity_sol', 0):.4f}")
             else:
-                print("❌ Buy failed")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Buy error: {e}")
-            return False
+                print("   ⚠️ No pool found - token may not be tradeable")
+        
+        return True
     
-    def test_sell_operation(self, mint_str: str, percentage: int = 100, slippage: int = 15) -> bool:
-        print(f"Testing SELL: {percentage}%")
+    async def test_buy_sell_cycle(self, mint_str: str, test_sol_amount: float = 0.01):
+        """Test complete buy/sell cycle with unified interface"""
+        print(f"\n🚀 Starting buy/sell test for {mint_str}")
+        print(f"Test amount: {test_sol_amount} SOL")
         
-        if not self.validate_mint_address(mint_str):
-            print("❌ Invalid mint address")
-            return False
-        
-        initial_token_balance = self.get_token_balance_for_mint(mint_str)
-        if initial_token_balance <= 0:
-            print("❌ No tokens to sell")
-            return False
-        
-        initial_sol_balance = self.check_wallet_balance()
-        
-        try:
-            print("Executing sell...")
-            success = self.pump_fun.sell_bonding_curve(mint_str, percentage, slippage)
-            
-            if success:
-                time.sleep(3)
-                new_sol_balance = self.check_wallet_balance()
-                sol_received = new_sol_balance - initial_sol_balance
-                print(f"✅ Sell successful - Received: {sol_received:.6f} SOL")
-                return True
-            else:
-                print("❌ Sell failed")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Sell error: {e}")
-            return False
-    
-    def run_comprehensive_test(self, mint_str: str, test_sol_amount: float = 0.01):
-        print(f"Starting test with {test_sol_amount} SOL")
-        
-        initial_sol_balance = self.check_wallet_balance()
+        # Check initial balance
+        initial_sol_balance = await self.check_wallet_balance()
         print(f"Initial SOL balance: {initial_sol_balance:.4f}")
         
-        # Test buy with higher slippage tolerance
-        buy_success = self.test_buy_operation(mint_str, test_sol_amount, slippage=25)  # Increase slippage to 25%
-        if not buy_success:
-            print("❌ Buy test failed - trying with even higher slippage")
-            # Try with much higher slippage for volatile tokens
-            buy_success = self.test_buy_operation(mint_str, test_sol_amount, slippage=50)
-            if not buy_success:
-                print("❌ Buy test failed even with 50% slippage")
-                return False
-        
-        time.sleep(5)
-        
-        # Test sell
-        sell_success = self.test_sell_operation(mint_str, 100)
-        if not sell_success:
-            print("❌ Sell test failed")
+        if initial_sol_balance < test_sol_amount + BUFFER_FEES_SOL:  
+            print(f"❌ Insufficient SOL. Need {test_sol_amount + BUFFER_FEES_SOL:.4f}, have {initial_sol_balance:.4f}")
             return False
         
-        time.sleep(3)
-        final_sol_balance = self.check_wallet_balance()
+        # Get token info
+        if not await self.get_token_info(mint_str):
+            return False
+        
+        # Execute buy
+        print(f"\n💰 Executing BUY: {test_sol_amount} SOL")
+        buy_success = await self.trader.buy(
+            mint_str=mint_str,
+            sol_amount=test_sol_amount,
+            slippage=DEFAULT_SLIPPAGE,  # Higher slippage for volatile tokens
+            fee_sol=FEE_SOL  # This will be ignored for bonding curve
+        )
+        
+        if not buy_success:
+            print("❌ Buy failed - trying with higher slippage")
+            buy_success = await self.trader.buy(
+                mint_str=mint_str,
+                sol_amount=test_sol_amount,
+                slippage=DEFAULT_SLIPPAGE,
+                fee_sol=FEE_SOL
+            )
+            
+            if not buy_success:
+                print("❌ Buy failed even with 50% slippage")
+                return False
+        
+        print("✅ Buy successful!")
+        print("⏳ Waiting 5 seconds before sell...")
+        await asyncio.sleep(5)
+        
+        # Execute sell
+        print(f"\n💸 Executing SELL: 100%")
+        sell_success = await self.trader.sell(
+            mint_str=mint_str,
+            percentage=PERCENTAGE_SELL,
+            slippage=DEFAULT_SLIPPAGE,
+            fee_sol=FEE_SOL
+        )
+        
+        if not sell_success:
+            print("❌ Sell failed")
+            return False
+        
+        print("✅ Sell successful!")
+        
+        # Check final balance
+        await asyncio.sleep(3)
+        final_sol_balance = await self.check_wallet_balance()
         net_change = final_sol_balance - initial_sol_balance
         
-        print(f"Final SOL balance: {final_sol_balance:.4f}")
-        print(f"Net change: {net_change:+.6f} SOL")
-        print("✅ Test completed!")
-        return True
-
-
-def main():
-    print("🚀 Pump.fun Trading Tester")
-    
-    try:
-        tester = PumpFunTester()
+        print(f"\n📈 Results:")
+        print(f"   Initial SOL: {initial_sol_balance:.6f}")
+        print(f"   Final SOL: {final_sol_balance:.6f}")
+        print(f"   Net change: {net_change:+.6f} SOL")
         
-        sol_balance = tester.check_wallet_balance()
+        if net_change > -test_sol_amount * LOSS_PERCENTAGE:  # Lost less than 10% due to fees/slippage
+            print("✅ Test completed successfully!")
+        else:
+            print("⚠️ High losses - check slippage settings")
+        
+        return True
+    
+    async def run_multiple_tests(self, mints: list, test_amount: float = 0.002):
+        """Run tests on multiple tokens"""
+        print(f"\n🔄 Running tests on {len(mints)} tokens")
+        
+        results = []
+        for i, mint in enumerate(mints, 1):
+            print(f"\n{'='*60}")
+            print(f"Test {i}/{len(mints)}: {mint}")
+            print(f"{'='*60}")
+            
+            try:
+                success = await self.test_buy_sell_cycle(mint, test_amount)
+                results.append((mint, success))
+                
+                if i < len(mints):  # Don't wait after last test
+                    print("\n⏳ Waiting 10 seconds before next test...")
+                    await asyncio.sleep(10)
+                    
+            except Exception as e:
+                logger.error(f"Test failed for {mint}: {e}")
+                results.append((mint, False))
+        
+        # Summary
+        print(f"\n{'='*60}")
+        print("📊 TEST SUMMARY")
+        print(f"{'='*60}")
+        successful = sum(1 for _, success in results if success)
+        print(f"Total tests: {len(results)}")
+        print(f"Successful: {successful}")
+        print(f"Failed: {len(results) - successful}")
+        
+        for mint, success in results:
+            status = "✅" if success else "❌"
+            print(f"   {status} {mint}")
+    
+    async def close(self):
+        """Clean up resources"""
+        await self.trader.close()
+
+
+async def main():
+    print("🚀 Unified Pump.fun Trading Tester")
+    print("This tool automatically detects token state and uses appropriate trading method")
+    
+    tester = None
+    try:
+        tester = SimplePumpTester()
+        
+        sol_balance = await tester.check_wallet_balance()
         print(f"SOL balance: {sol_balance:.4f}")
         
-        if sol_balance < 0.02:
-            print("❌ Need at least 0.02 SOL for testing")
+        if sol_balance < MIN_SOL_BALANCE:
+            print(f"❌ Need at least {MIN_SOL_BALANCE:.4f} SOL for testing")
             return
         
-        # Replace with actual token address
-        test_mint = "AdrdBM9qRsh8GTp67HGHVWndpLHf1pVKascaKT5Upump"
-        
-        test_amount = 0.001
-        
-        print(f"Test token: {test_mint}")
-        print(f"Test amount: {test_amount} SOL")
+        # Test tokens (mix of bonding curve and graduated tokens)
+        test_tokens = [
+            "EDkDcWMPCgP4CAT8JQjd2oeF4TN9akBU21xA8q29pump", 
+            "EucBKGZZgeDgWZ7VMJVfbfA5tkb2mchrRP2KQT88pump"
+        ]   
 
-
-        success = tester.run_comprehensive_test(test_mint, test_amount)
+        await tester.run_multiple_tests(test_tokens)
         
-        if success:
-            print("🎉 All tests passed!")
-        else:
-            print("❌ Tests failed")
-            
-    except KeyboardInterrupt:
-        print("Test interrupted")
-    except Exception as e:
-        logger.error(f"Error: {e}")
-
+    finally:
+        if tester:
+            await tester.close()
+            print("\n🔄 Resources cleaned up")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
