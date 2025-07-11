@@ -1,10 +1,20 @@
 import json
 import time
+import logging
 from solana.rpc.commitment import Processed, Confirmed
 from solana.rpc.types import TokenAccountOpts
 from solders.signature import Signature # type: ignore
 from solders.pubkey import Pubkey  # type: ignore
-from config import client
+from model.providers.solana_provider import SolanaProvider
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Initialize Solana provider
+solana_provider = SolanaProvider.get_instance()
+client = solana_provider.rpc
+payer_keypair = solana_provider.payer
+
 
 def get_token_balance(pub_key: Pubkey, mint: Pubkey) -> float | None:
     try:
@@ -25,25 +35,32 @@ def get_token_balance(pub_key: Pubkey, mint: Pubkey) -> float | None:
         return None
 
 def confirm_txn(txn_sig: Signature, max_retries: int = 20, retry_interval: int = 3) -> bool:
-    retries = 1
+    retries = 0  # Start at 0 instead of 3
     
     while retries < max_retries:
         try:
             txn_res = client.get_transaction(txn_sig, encoding="json", commitment=Confirmed, max_supported_transaction_version=0)
+            
+            # Check if transaction was found
+            if txn_res.value is None:
+                print(f"Transaction not found yet... try count: {retries}")
+                retries += 1
+                time.sleep(retry_interval)
+                continue
+                
             txn_json = json.loads(txn_res.value.transaction.meta.to_json())
             
             if txn_json['err'] is None:
-                print("Transaction confirmed... try count:", retries)
+                print(f"Transaction confirmed... try count: {retries}")
                 return True
-            
-            print("Error: Transaction not confirmed. Retrying...")
-            if txn_json['err']:
-                print("Transaction failed.")
+            else:
+                print(f"Transaction failed with error: {txn_json['err']}")
                 return False
+                
         except Exception as e:
-            print("Awaiting confirmation... try count:", retries)
+            print(f"Awaiting confirmation... try count: {retries} - {str(e)}")
             retries += 1
             time.sleep(retry_interval)
     
     print("Max retries reached. Transaction confirmation failed.")
-    return None
+    return False  # Return False instead of None

@@ -1,10 +1,20 @@
+import logging
 from dataclasses import dataclass
 from typing import Optional
 from construct import Flag, Int64ul, Padding, Struct, Bytes
 from solders.pubkey import Pubkey  # type: ignore
 from spl.token.instructions import get_associated_token_address
-from config import client
-from constants import PUMP_FUN_PROGRAM
+from model.providers.solana_provider import SolanaProvider
+from config import config
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Initialize Solana provider
+solana_provider = SolanaProvider.get_instance()
+client = solana_provider.rpc
+payer_keypair = solana_provider.payer
+
 
 @dataclass
 class CoinData:
@@ -42,7 +52,7 @@ def derive_bonding_curve_accounts(mint_str: str):
         mint = Pubkey.from_string(mint_str)
         bonding_curve, _ = Pubkey.find_program_address(
             ["bonding-curve".encode(), bytes(mint)],
-            PUMP_FUN_PROGRAM
+            config.PUMP_FUN_PROGRAM
         )
         associated_bonding_curve = get_associated_token_address(bonding_curve, mint)
         return bonding_curve, associated_bonding_curve

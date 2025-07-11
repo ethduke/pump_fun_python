@@ -1,0 +1,26 @@
+# Constants
+constants:
+  global: "4wTV1YmiEkRvAtNtsSGPtUrqRYQMe5SKy2uB4Jjaxnjf"
+  fee_recipient: "62qc2CNXwrYqQScmEdiZFFAnJR262PxWEuNQtxfafNgV"
+  system_program: "11111111111111111111111111111111"
+  token_program: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  assoc_token_acc_prog: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+  event_authority: "Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1"
+  pump_fun_program: "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
+
+# Helius configuration
+helius:
+  wss_url: "https://mainnet.helius-rpc.com/?api-key="
+  rpc_url: "https://mainnet.helius-rpc.com/?api-key="
+  staked_rpc_url: "https://staked.helius-rpc.com?api-key="
+
+# Solana configuration
+solana:
+  unit_budget: 400000  # Increase from 150000 to 400000 for pump.fun transactions
+  unit_price: 2000000  # Increase from 1000000 to 2000000 for better priority
+
+# Tokens configuration  
+tokens:
+  wsol:
+    address: "So11111111111111111111111111111111111111112"
+    decimal: 9
