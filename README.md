@@ -1,64 +1,31 @@
-# pump_fun_py
+# PumpFun Python
 
-Python library to trade on pump.fun. 
+Trade on pump.fun with smart strategy detection. **UnifiedPumpFun automatically figures out if a token is still in bonding curve or has graduated to PumpSwap DEX** - no need to check manually.
 
-```
-pip install solana==0.36.1 solders==0.23.0
-```
+## Usage
 
-Updated: 2/17/2025
-
-
-# Instructions
-
-Clone the repo, and add your Private Key (Base58 string) and RPC to the config.py.
-
-**If you can - please support my work and donate to: 3pPK76GL5ChVFBHND54UfBMtg36Bsh1mzbQPTbcK89PD**
-
-
-# Contact
-
-Check out my tools: https://github.com/AL-THE-BOT-FATHER/bot-father-bundler
-
-Telegram: @AL_THE_BOT_FATHER
-
-
-# FAQS
-
-**What format should my private key be in?** 
-
-The private key should be in the base58 string format, not bytes. 
-
-**Why are my transactions being dropped?** 
-
-You get what you pay for. Don't use the main-net RPC, just spend the money for Helius or Quick Node.
-
-**How do I change the fee?** 
-
-Modify the UNIT_BUDGET and UNIT_PRICE in the config.py. 
-
-**Does this code work on devnet?**
-
-No. 
-
-# Example
-
-```
-from pump_fun import buy
-
-# Buy Example
-mint_str = "pump_token_address"
-sol_in = .1
-slippage = 5
-buy(mint_str, sol_in, slippage)
+```bash
+python3 -m venv venv
+source venv/bin/activate  
+pip install -r requirements.txt
 ```
 
-```
-from pump_fun import sell
+Add your private key and RPC to `.env`:
 
-# Sell Example
-mint_str = "pump_token_address"
-percentage = 100
-slippage = 5
-sell(mint_str, percentage, slippage)
+```python
+import asyncio
+from model.pump_fun.unified_pump_fun import UnifiedPumpFun
+from model.providers.solana_provider import SolanaProvider
+
+async def main():
+    solana_provider = SolanaProvider.get_instance()
+    trader = UnifiedPumpFun(solana_provider)
+    
+    # Auto-detects bonding curve vs DEX
+    await trader.buy(mint_str, sol_amount, slippage)
+    await trader.sell(mint_str, percentage, slippage)
+    
+    await trader.close()
+
+asyncio.run(main())
 ```

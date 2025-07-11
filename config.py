@@ -1,6 +1,6 @@
 from solana.rpc.api import Client
-from solders.keypair import Keypair 
-from solders.pubkey import Pubkey
+from solders.keypair import Keypair # type: ignore
+from solders.pubkey import Pubkey # type: ignore
 import os
 import logging
 import yaml
