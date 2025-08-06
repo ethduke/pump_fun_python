@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import Optional
-from solders.pubkey import Pubkey
+from solders.pubkey import Pubkey # type: ignore
 
 class TokenProvider(ABC):
     """Abstract base class for token-related operations."""
     
     @abstractmethod
-    def get_token_balance(self, mint: str | Pubkey) -> Optional[float]:
+    async def get_token_balance(self, mint: str | Pubkey) -> Optional[float]:
         """Get token balance for a specific mint.
         
         Args:

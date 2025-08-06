@@ -185,7 +185,7 @@ class PumpSwap:
                 vault_ata = vault_ata,
             )
         elif pool_type == OLD_POOL_TYPE:
-            buy_ix = self._build_old_pumpswap_buy_ix(
+            buy_ix = self._build_old_pumpswap_buy(
                 pool_pubkey = pool_data['pool_pubkey'],
                 user_pubkey = user_pubkey,
                 global_config = GLOBAL_CONFIG_PUB,
@@ -325,15 +325,18 @@ class PumpSwap:
         vault_ata: Pubkey
     ):
         """
-          #1 Pool
-          #2 User
-          #3 Global Config
-          #4 Base Mint
-          #5 Quote Mint
-          #6 User Base ATA
-          #7 User Quote ATA
-          #8 Pool Base ATA
-          #9 Pool Quote ATA
+        Updated buy instruction for new pump_amm IDL with volume accumulators.
+        
+        Accounts (21 total based on new IDL):
+          #1  Pool
+          #2  User  
+          #3  Global Config
+          #4  Base Mint
+          #5  Quote Mint
+          #6  User Base Token Account
+          #7  User Quote Token Account
+          #8  Pool Base Token Account
+          #9  Pool Quote Token Account
           #10 Protocol Fee Recipient
           #11 Protocol Fee Recipient Token Account
           #12 Base Token Program
@@ -341,39 +344,48 @@ class PumpSwap:
           #14 System Program
           #15 Associated Token Program
           #16 Event Authority
-          #17 PumpSwap Program
-        
-          {
-            base_amount_out:  u64,
-            max_quote_amount_in: u64
-          }
-        plus an 8-byte Anchor discriminator at the front. 
+          #17 Program
+          #18 Coin Creator Vault ATA
+          #19 Coin Creator Vault Authority
+          #20 Global Volume Accumulator
+          #21 User Volume Accumulator
+
+        Args:
+          base_amount_out: u64
+          max_quote_amount_in: u64
         """
         data = bytearray()
         data.extend(BUY_INSTR_DISCRIM)
         data.extend(struct.pack("<Q", base_amount_out))
         data.extend(struct.pack("<Q", max_quote_amount_in))
 
+        # Derive additional required accounts for pump_amm
+        global_volume_accumulator = derive_global_volume_accumulator()
+        user_volume_accumulator = derive_user_volume_accumulator(user_pubkey)
+        event_authority = derive_event_authority()
+
         accs = [
-            AccountMeta(pubkey=pool_pubkey, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=user_pubkey, is_signer=True, is_writable=True),
-            AccountMeta(pubkey=global_config, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=base_mint, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=quote_mint, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=user_base_token_ata, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=user_quote_token_ata, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=pool_base_token_account, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=pool_quote_token_account, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=protocol_fee_recipient, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=protocol_fee_recipient_ata, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=TOKEN_PROGRAM_PUB, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=TOKEN_PROGRAM_PUB, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=ASSOCIATED_TOKEN, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=EVENT_AUTHORITY, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=PUMPSWAP_PROGRAM_ID, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=vault_ata, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=vault_auth, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=pool_pubkey, is_signer=False, is_writable=False),  # pool
+            AccountMeta(pubkey=user_pubkey, is_signer=True, is_writable=True),   # user
+            AccountMeta(pubkey=global_config, is_signer=False, is_writable=False), # global_config
+            AccountMeta(pubkey=base_mint, is_signer=False, is_writable=False),   # base_mint
+            AccountMeta(pubkey=quote_mint, is_signer=False, is_writable=False),  # quote_mint
+            AccountMeta(pubkey=user_base_token_ata, is_signer=False, is_writable=True), # user_base_token_account
+            AccountMeta(pubkey=user_quote_token_ata, is_signer=False, is_writable=True), # user_quote_token_account
+            AccountMeta(pubkey=pool_base_token_account, is_signer=False, is_writable=True), # pool_base_token_account
+            AccountMeta(pubkey=pool_quote_token_account, is_signer=False, is_writable=True), # pool_quote_token_account
+            AccountMeta(pubkey=protocol_fee_recipient, is_signer=False, is_writable=False), # protocol_fee_recipient
+            AccountMeta(pubkey=protocol_fee_recipient_ata, is_signer=False, is_writable=True), # protocol_fee_recipient_token_account
+            AccountMeta(pubkey=TOKEN_PROGRAM_PUB, is_signer=False, is_writable=False), # base_token_program
+            AccountMeta(pubkey=TOKEN_PROGRAM_PUB, is_signer=False, is_writable=False), # quote_token_program
+            AccountMeta(pubkey=SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False), # system_program
+            AccountMeta(pubkey=ASSOCIATED_TOKEN, is_signer=False, is_writable=False), # associated_token_program
+            AccountMeta(pubkey=event_authority, is_signer=False, is_writable=False), # event_authority
+            AccountMeta(pubkey=PUMPSWAP_PROGRAM_ID, is_signer=False, is_writable=False), # program
+            AccountMeta(pubkey=vault_ata, is_signer=False, is_writable=True), # coin_creator_vault_ata
+            AccountMeta(pubkey=vault_auth, is_signer=False, is_writable=False), # coin_creator_vault_authority
+            AccountMeta(pubkey=global_volume_accumulator, is_signer=False, is_writable=True), # global_volume_accumulator
+            AccountMeta(pubkey=user_volume_accumulator, is_signer=False, is_writable=True), # user_volume_accumulator
         ]
 
         return Instruction(
@@ -404,7 +416,7 @@ class PumpSwap:
         user_pubkey = self.signer.pubkey()
         
         user_base_balance_f = await self.token_provider.get_token_balance(str(pool_data['token_base']))
-        if user_base_balance_f <= 0:
+        if user_base_balance_f is None or user_base_balance_f <= 0:
             if debug_prints:
                 print("No base token balance, can't sell.")
             return (False, None, pool_type)
@@ -513,7 +525,9 @@ class PumpSwap:
         vault_ata: Pubkey
     ):
         """
-        Accounts (17 total):
+        Updated sell instruction for new pump_amm IDL. 
+        
+        Accounts (19 total based on new IDL):
           #1  Pool
           #2  User
           #3  Global Config
@@ -531,35 +545,42 @@ class PumpSwap:
           #15 Associated Token Program
           #16 Event Authority
           #17 Program
+          #18 Coin Creator Vault ATA
+          #19 Coin Creator Vault Authority
 
-        Data:
-          sell_discriminator (8 bytes) + struct.pack("<QQ", base_amount_in, min_quote_amount_out)
+        Args:
+          base_amount_in: u64
+          min_quote_amount_out: u64
         """
         data = bytearray()
         data.extend(SELL_INSTR_DISCRIM)
         data.extend(struct.pack("<Q", base_amount_in))
         data.extend(struct.pack("<Q", min_quote_amount_out))
 
+        # Derive event authority for pump_amm
+        event_authority = derive_event_authority()
+
         accs = [
-            AccountMeta(pubkey=pool_data["pool_pubkey"], is_signer=False, is_writable=True),
-            AccountMeta(pubkey=user_pubkey, is_signer=True, is_writable=True),
-            AccountMeta(pubkey=GLOBAL_CONFIG_PUB, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=pool_data["token_base"], is_signer=False, is_writable=False),
-            AccountMeta(pubkey=pool_data["token_quote"], is_signer=False, is_writable=False),
-            AccountMeta(pubkey=get_associated_token_address(user_pubkey, pool_data["token_base"]), is_signer=False, is_writable=True),
-            AccountMeta(pubkey=get_associated_token_address(user_pubkey, pool_data["token_quote"]), is_signer=False, is_writable=True),
-            AccountMeta(pubkey=Pubkey.from_string(pool_data["pool_base_token_account"]), is_signer=False, is_writable=True),
-            AccountMeta(pubkey=Pubkey.from_string(pool_data["pool_quote_token_account"]), is_signer=False, is_writable=True),
-            AccountMeta(pubkey=protocol_fee_recipient, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=protocol_fee_recipient_ata, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=TOKEN_PROGRAM_PUB, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=TOKEN_PROGRAM_PUB, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=ASSOCIATED_TOKEN, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=EVENT_AUTHORITY, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=PUMPSWAP_PROGRAM_ID, is_signer=False, is_writable=False),
-            AccountMeta(pubkey=vault_ata, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=vault_auth, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=pool_data["pool_pubkey"], is_signer=False, is_writable=False), # pool
+            AccountMeta(pubkey=user_pubkey, is_signer=True, is_writable=True), # user
+            AccountMeta(pubkey=GLOBAL_CONFIG_PUB, is_signer=False, is_writable=False), # global_config
+            AccountMeta(pubkey=pool_data["token_base"], is_signer=False, is_writable=False), # base_mint
+            AccountMeta(pubkey=pool_data["token_quote"], is_signer=False, is_writable=False), # quote_mint
+            AccountMeta(pubkey=get_associated_token_address(user_pubkey, pool_data["token_base"]), is_signer=False, is_writable=True), # user_base_token_account
+            AccountMeta(pubkey=get_associated_token_address(user_pubkey, pool_data["token_quote"]), is_signer=False, is_writable=True), # user_quote_token_account
+            AccountMeta(pubkey=Pubkey.from_string(pool_data["pool_base_token_account"]), is_signer=False, is_writable=True), # pool_base_token_account
+            AccountMeta(pubkey=Pubkey.from_string(pool_data["pool_quote_token_account"]), is_signer=False, is_writable=True), # pool_quote_token_account
+            AccountMeta(pubkey=protocol_fee_recipient, is_signer=False, is_writable=False), # protocol_fee_recipient
+            AccountMeta(pubkey=protocol_fee_recipient_ata, is_signer=False, is_writable=True), # protocol_fee_recipient_token_account
+            AccountMeta(pubkey=TOKEN_PROGRAM_PUB, is_signer=False, is_writable=False), # base_token_program
+            AccountMeta(pubkey=TOKEN_PROGRAM_PUB, is_signer=False, is_writable=False), # quote_token_program
+            AccountMeta(pubkey=SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False), # system_program
+            AccountMeta(pubkey=ASSOCIATED_TOKEN, is_signer=False, is_writable=False), # associated_token_program
+            AccountMeta(pubkey=event_authority, is_signer=False, is_writable=False), # event_authority
+            AccountMeta(pubkey=PUMPSWAP_PROGRAM_ID, is_signer=False, is_writable=False), # program
+            AccountMeta(pubkey=vault_ata, is_signer=False, is_writable=True), # coin_creator_vault_ata
+            AccountMeta(pubkey=vault_auth, is_signer=False, is_writable=False), # coin_creator_vault_authority
+            # Note: sell instruction doesn't have volume accumulator accounts per IDL
         ]
 
         return Instruction(
@@ -631,6 +652,29 @@ class PumpSwap:
             accounts=accs
         )
 
+
+def derive_global_volume_accumulator() -> Pubkey:
+    """Derive the global volume accumulator PDA for pump_amm"""
+    seed = [b"global_volume_accumulator"]
+    return Pubkey.find_program_address(seed, PUMPSWAP_PROGRAM_ID)[0]
+
+
+def derive_user_volume_accumulator(user: Pubkey) -> Pubkey:
+    """Derive the user volume accumulator PDA for pump_amm"""
+    seed = [b"user_volume_accumulator", bytes(user)]
+    return Pubkey.find_program_address(seed, PUMPSWAP_PROGRAM_ID)[0]
+
+
+def derive_coin_creator_vault_authority(coin_creator: Pubkey) -> Pubkey:
+    """Derive the coin creator vault authority PDA for pump_amm"""
+    seed = [b"creator_vault", bytes(coin_creator)]
+    return Pubkey.find_program_address(seed, PUMPSWAP_PROGRAM_ID)[0]
+
+
+def derive_event_authority() -> Pubkey:
+    """Derive the event authority PDA for pump_amm"""
+    seed = [b"__event_authority"]
+    return Pubkey.find_program_address(seed, PUMPSWAP_PROGRAM_ID)[0]
 
 
     
