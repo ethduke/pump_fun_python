@@ -1,6 +1,6 @@
 # PumpFun Python
 
-Trade on pump.fun with smart strategy detection. **UnifiedPumpFun automatically figures out if a token is still in bonding curve or has graduated to PumpSwap DEX** - no need to check manually.
+PumpFun Python automatically detects if a token uses a bonding curve or PumpSwap DEX, and executes buy/sell operations using the correct method.
 
 ## Usage
 

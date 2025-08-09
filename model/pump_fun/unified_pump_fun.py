@@ -38,17 +38,31 @@ class BondingCurveStrategy(TradingStrategy):
     
     def __init__(self, pump_fun: PumpFun):
         self.pump_fun = pump_fun
+        self.last_tx_signature = None
     
     async def buy(self, mint_str: str, sol_amount: float, slippage: int = 15, **kwargs) -> bool:
         """Execute buy on bonding curve"""
-        return self.pump_fun.buy_bonding_curve(mint_str, sol_amount, slippage)
+        result = self.pump_fun.buy_bonding_curve(mint_str, sol_amount, slippage)
+        if isinstance(result, tuple):
+            confirmed, tx_sig = result
+            self.last_tx_signature = tx_sig
+            return confirmed
+        return result
     
     async def sell(self, mint_str: str, percentage: int = 100, slippage: int = 15, **kwargs) -> bool:
         """Execute sell on bonding curve"""
-        return self.pump_fun.sell_bonding_curve(mint_str, percentage, slippage)
+        result = self.pump_fun.sell_bonding_curve(mint_str, percentage, slippage)
+        if isinstance(result, tuple):
+            confirmed, tx_sig = result
+            self.last_tx_signature = tx_sig
+            return confirmed
+        return result
     
     def get_strategy_name(self) -> str:
         return "BondingCurve"
+    
+    def get_last_tx_signature(self) -> Optional[str]:
+        return self.last_tx_signature
 
 
 class PumpSwapStrategy(TradingStrategy):
@@ -58,6 +72,7 @@ class PumpSwapStrategy(TradingStrategy):
         self.pump_swap = pump_swap
         self.async_client = async_client
         self._pool_cache = {}  # Cache pools to avoid repeated lookups
+        self.last_tx_signature = None
     
     async def _get_pool_data(self, mint_str: str) -> Tuple[bool, dict, str]:
         """Get pool data for mint, with caching"""
@@ -111,6 +126,9 @@ class PumpSwapStrategy(TradingStrategy):
     
     def get_strategy_name(self) -> str:
         return "PumpSwap"
+    
+    def get_last_tx_signature(self) -> Optional[str]:
+        return self.last_tx_signature
 
 
 class UnifiedPumpFun:
@@ -189,6 +207,7 @@ class UnifiedPumpFun:
             return False
         
         logger.info(f"Executing buy with {strategy.get_strategy_name()} strategy")
+        self._last_strategy_used = strategy
         
         try:
             return await strategy.buy(mint_str, sol_amount, slippage, **kwargs)
@@ -215,6 +234,7 @@ class UnifiedPumpFun:
             return False
         
         logger.info(f"Executing sell with {strategy.get_strategy_name()} strategy")
+        self._last_strategy_used = strategy
         
         try:
             return await strategy.sell(mint_str, percentage, slippage, **kwargs)
@@ -260,6 +280,12 @@ class UnifiedPumpFun:
         except Exception as e:
             return {"valid": False, "error": str(e)}
     
+    def get_last_tx_signature(self) -> Optional[str]:
+        """Get the last transaction signature from the active strategy"""
+        # Get the last used strategy and return its transaction signature
+        if hasattr(self, '_last_strategy_used'):
+            return self._last_strategy_used.get_last_tx_signature()
+        return None
 
     
     async def close(self):

@@ -61,56 +61,75 @@ class PumpFun:
             logger.info("Confirming transaction")
             confirmed = confirm_txn(txn_sig)
             logger.info(f"Transaction confirmed: {confirmed}")
-            return confirmed
+            return confirmed, txn_sig
         except Exception as e:
             logger.error(f"Error executing versioned transaction: {e}")
-            return False
+            return False, None
 
-    def create_swap_instruction(self, operation_code: str, mint: Pubkey, bonding_curve: Pubkey, 
-                               associated_bonding_curve: Pubkey, associated_user: Pubkey, 
-                               user: Pubkey, creator_vault: Pubkey, amount: int, 
-                               sol_amount: int, is_buy: bool = True) -> Instruction:
-        """Create swap instruction for buy or sell operations"""
+    def create_buy_instruction(self, mint: Pubkey, bonding_curve: Pubkey, 
+                              associated_bonding_curve: Pubkey, associated_user: Pubkey, 
+                              user: Pubkey, creator_vault: Pubkey, global_volume_accumulator: Pubkey,
+                              user_volume_accumulator: Pubkey, amount: int, 
+                              max_sol_cost: int) -> Instruction:
+        """Create buy instruction according to new IDL structure"""
         
-        if is_buy:
-            # Buy order: GLOBAL, FEE_RECIPIENT, MINT, BONDING_CURVE, ASSOCIATED_BONDING_CURVE, 
-            # ASSOCIATED_USER, USER, SYSTEM_PROGRAM, TOKEN_PROGRAM, CREATOR_VAULT, EVENT_AUTHORITY, PUMP_FUN_PROGRAM
-            keys = [
-                AccountMeta(pubkey=config.GLOBAL, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=config.FEE_RECIPIENT, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=mint, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=bonding_curve, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=associated_bonding_curve, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=associated_user, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=user, is_signer=True, is_writable=True),
-                AccountMeta(pubkey=config.SYSTEM_PROGRAM, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=config.TOKEN_PROGRAM, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=creator_vault, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=config.EVENT_AUTHORITY, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=config.PUMP_FUN_PROGRAM, is_signer=False, is_writable=False)
-            ]
-        else:
-            # Sell order: GLOBAL, FEE_RECIPIENT, MINT, BONDING_CURVE, ASSOCIATED_BONDING_CURVE, 
-            # ASSOCIATED_USER, USER, SYSTEM_PROGRAM, CREATOR_VAULT, TOKEN_PROGRAM, EVENT_AUTHORITY, PUMP_FUN_PROGRAM
-            keys = [
-                AccountMeta(pubkey=config.GLOBAL, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=config.FEE_RECIPIENT, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=mint, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=bonding_curve, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=associated_bonding_curve, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=associated_user, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=user, is_signer=True, is_writable=True),
-                AccountMeta(pubkey=config.SYSTEM_PROGRAM, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=creator_vault, is_signer=False, is_writable=True),
-                AccountMeta(pubkey=config.TOKEN_PROGRAM, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=config.EVENT_AUTHORITY, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=config.PUMP_FUN_PROGRAM, is_signer=False, is_writable=False)
-            ]
+        # New buy order account structure according to IDL:
+        # global, fee_recipient, mint, bonding_curve, associated_bonding_curve, 
+        # associated_user, user, system_program, token_program, creator_vault, 
+        # event_authority, program, global_volume_accumulator, user_volume_accumulator, user_acc_target
+        keys = [
+            AccountMeta(pubkey=config.GLOBAL, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=config.FEE_RECIPIENT, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=mint, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=bonding_curve, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=associated_bonding_curve, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=associated_user, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=user, is_signer=True, is_writable=True),
+            AccountMeta(pubkey=config.SYSTEM_PROGRAM, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=config.TOKEN_PROGRAM, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=creator_vault, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=config.EVENT_AUTHORITY, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=config.PUMP_FUN_PROGRAM, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=global_volume_accumulator, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=user_volume_accumulator, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=user, is_signer=True, is_writable=True)  # user_acc_target same as user
+        ]
 
         data = bytearray()
-        data.extend(bytes.fromhex(operation_code))
+        data.extend(bytes.fromhex("66063d1201daebea"))  # buy discriminator
         data.extend(struct.pack('<Q', amount))
-        data.extend(struct.pack('<Q', sol_amount))
+        data.extend(struct.pack('<Q', max_sol_cost))
+        
+        return Instruction(config.PUMP_FUN_PROGRAM, bytes(data), keys)
+
+    def create_sell_instruction(self, mint: Pubkey, bonding_curve: Pubkey, 
+                               associated_bonding_curve: Pubkey, associated_user: Pubkey, 
+                               user: Pubkey, creator_vault: Pubkey, amount: int, 
+                               min_sol_output: int) -> Instruction:
+        """Create sell instruction according to new IDL structure"""
+        
+        # New sell order account structure according to IDL:
+        # global, fee_recipient, mint, bonding_curve, associated_bonding_curve, 
+        # associated_user, user, system_program, creator_vault, token_program, event_authority, program
+        keys = [
+            AccountMeta(pubkey=config.GLOBAL, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=config.FEE_RECIPIENT, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=mint, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=bonding_curve, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=associated_bonding_curve, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=associated_user, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=user, is_signer=True, is_writable=True),
+            AccountMeta(pubkey=config.SYSTEM_PROGRAM, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=creator_vault, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=config.TOKEN_PROGRAM, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=config.EVENT_AUTHORITY, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=config.PUMP_FUN_PROGRAM, is_signer=False, is_writable=False)
+        ]
+
+        data = bytearray()
+        data.extend(bytes.fromhex("33e685a4017f83ad"))  # sell discriminator
+        data.extend(struct.pack('<Q', amount))
+        data.extend(struct.pack('<Q', min_sol_output))
         
         return Instruction(config.PUMP_FUN_PROGRAM, bytes(data), keys)
 
@@ -173,18 +192,31 @@ class PumpFun:
             max_sol_cost = int((sol_in * slippage_adjustment) * sol_dec)
             print(f"Amount: {amount} | Max Sol Cost: {max_sol_cost}")
 
-            print("Creating swap instructions...")
-            swap_instruction = self.create_swap_instruction(
-                operation_code="66063d1201daebea",
+            print("Deriving volume accumulator accounts...")
+            # Derive global volume accumulator PDA
+            global_volume_accumulator, _ = Pubkey.find_program_address(
+                [b'global_volume_accumulator'], 
+                config.PUMP_FUN_PROGRAM
+            )
+            
+            # Derive user volume accumulator PDA
+            user_volume_accumulator, _ = Pubkey.find_program_address(
+                [b'user_volume_accumulator', bytes(USER)], 
+                config.PUMP_FUN_PROGRAM
+            )
+            
+            print("Creating buy instruction...")
+            swap_instruction = self.create_buy_instruction(
                 mint=MINT,
                 bonding_curve=BONDING_CURVE,
                 associated_bonding_curve=ASSOCIATED_BONDING_CURVE,
                 associated_user=ASSOCIATED_USER,
                 user=USER,
                 creator_vault=CREATOR_VAULT,
+                global_volume_accumulator=global_volume_accumulator,
+                user_volume_accumulator=user_volume_accumulator,
                 amount=amount,
-                sol_amount=max_sol_cost,
-                is_buy=True
+                max_sol_cost=max_sol_cost
             )
 
             # Build instructions array with proper ordering
@@ -206,12 +238,18 @@ class PumpFun:
             versioned_txn = self.create_versioned_swap_transaction(instructions)
 
             print("Executing transaction...")
-            confirmed = self.execute_versioned_transaction(versioned_txn)
+            result = self.execute_versioned_transaction(versioned_txn)
             
-            return confirmed
+            if isinstance(result, tuple):
+                confirmed, txn_sig = result
+                if confirmed:
+                    print(f"✅ Buy transaction successful! Hash: {txn_sig}")
+                return confirmed, txn_sig
+            else:
+                return result, None
         except Exception as e:
             print(f"Error occurred during transaction: {e}")
-            return False
+            return False, None
 
     def sell_bonding_curve(self, mint_str: str, percentage: int = 100, slippage: int = 5) -> bool:
         try:
@@ -260,9 +298,8 @@ class PumpFun:
             min_sol_output = int((sol_out * slippage_adjustment) * sol_dec)
             print(f"Amount: {amount} | Minimum Sol Out: {min_sol_output}")
             
-            print("Creating swap instructions...")
-            swap_instruction = self.create_swap_instruction(
-                operation_code="33e685a4017f83ad",
+            print("Creating sell instruction...")
+            swap_instruction = self.create_sell_instruction(
                 mint=MINT,
                 bonding_curve=BONDING_CURVE,
                 associated_bonding_curve=ASSOCIATED_BONDING_CURVE,
@@ -270,8 +307,7 @@ class PumpFun:
                 user=USER,
                 creator_vault=CREATOR_VAULT,
                 amount=amount,
-                sol_amount=min_sol_output,
-                is_buy=False
+                min_sol_output=min_sol_output
             )
 
             # Prepare close instruction for 100% sells (executed AFTER swap)
@@ -302,10 +338,16 @@ class PumpFun:
             versioned_txn = self.create_versioned_swap_transaction(instructions)
 
             print("Executing transaction...")
-            confirmed = self.execute_versioned_transaction(versioned_txn)
+            result = self.execute_versioned_transaction(versioned_txn)
             
-            return confirmed
+            if isinstance(result, tuple):
+                confirmed, txn_sig = result
+                if confirmed:
+                    print(f"✅ Sell transaction successful! Hash: {txn_sig}")
+                return confirmed, txn_sig
+            else:
+                return result, None
 
         except Exception as e:
             print(f"Error occurred during transaction: {e}")
-            return False
+            return False, None
