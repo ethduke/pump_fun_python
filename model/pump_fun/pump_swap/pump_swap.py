@@ -353,11 +353,14 @@ class PumpSwap:
         Args:
           base_amount_out: u64
           max_quote_amount_in: u64
+          track_volume: OptionBool
         """
         data = bytearray()
         data.extend(BUY_INSTR_DISCRIM)
         data.extend(struct.pack("<Q", base_amount_out))
         data.extend(struct.pack("<Q", max_quote_amount_in))
+        # Add track_volume parameter (OptionBool) - set to true for volume tracking
+        data.extend(struct.pack("<?", True))  # track_volume = true
 
         # Derive additional required accounts for pump_amm
         global_volume_accumulator = derive_global_volume_accumulator()
@@ -365,7 +368,7 @@ class PumpSwap:
         event_authority = derive_event_authority()
 
         accs = [
-            AccountMeta(pubkey=pool_pubkey, is_signer=False, is_writable=False),  # pool
+            AccountMeta(pubkey=pool_pubkey, is_signer=False, is_writable=True),  # pool
             AccountMeta(pubkey=user_pubkey, is_signer=True, is_writable=True),   # user
             AccountMeta(pubkey=global_config, is_signer=False, is_writable=False), # global_config
             AccountMeta(pubkey=base_mint, is_signer=False, is_writable=False),   # base_mint
@@ -674,6 +677,12 @@ def derive_coin_creator_vault_authority(coin_creator: Pubkey) -> Pubkey:
 def derive_event_authority() -> Pubkey:
     """Derive the event authority PDA for pump_amm"""
     seed = [b"__event_authority"]
+    return Pubkey.find_program_address(seed, PUMPSWAP_PROGRAM_ID)[0]
+
+
+def derive_fee_config() -> Pubkey:
+    """Derive the fee config PDA for pump_amm"""
+    seed = [b"fee_config", bytes.fromhex("0c14defc825ec67694250818bb654065f4298d3156d571b4d4f8090c18e9a863")]
     return Pubkey.find_program_address(seed, PUMPSWAP_PROGRAM_ID)[0]
 
 
