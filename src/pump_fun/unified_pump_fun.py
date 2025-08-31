@@ -4,9 +4,9 @@ from abc import ABC, abstractmethod
 
 from solana.rpc.async_api import AsyncClient
 
-from model.pump_fun.bonding_curve.pump_fun import PumpFun
-from model.pump_fun.pump_swap.pump_swap import PumpSwap
-from model.providers.solana_provider import SolanaProvider
+from src.pump_fun.pump_fun_dbc import PumpFun
+from src.pump_fun.pump_swap import PumpSwap
+from src.providers.solana_provider import SolanaProvider
 from utils.coin_data import get_coin_data
 from utils.pool_utils import find_best_pool_by_mint
 from config import config

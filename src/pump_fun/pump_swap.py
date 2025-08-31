@@ -1,5 +1,4 @@
 import struct
-from typing import Optional
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.types import TxOpts
 from solders.compute_budget import set_compute_unit_price, set_compute_unit_limit # type: ignore
@@ -19,8 +18,8 @@ from spl.token.instructions import (
     close_account,
     CloseAccountParams,
 )
-from model.providers.solana_token_provider import SolanaTokenProvider
-from model.providers.solana_transaction_provider import SolanaTransactionProvider
+from src.providers.solana_token_provider import SolanaTokenProvider
+from src.providers.solana_transaction_provider import SolanaTransactionProvider
 from utils.pool_utils import (
     fetch_pool_state,
     fetch_pool_base_price,
@@ -46,7 +45,8 @@ from utils.pool_utils import (
 
 
 class PumpSwap:
-    def __init__(self, async_client: AsyncClient, signer: Keypair):
+    def __init__(self, async_client: AsyncClient, 
+                 signer: Keypair):
         self.async_client = async_client
         self.signer = signer
         self.token_provider = SolanaTokenProvider()

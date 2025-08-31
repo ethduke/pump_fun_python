@@ -4,7 +4,7 @@ from typing import Optional
 from construct import Flag, Int64ul, Padding, Struct, Bytes
 from solders.pubkey import Pubkey  # type: ignore
 from spl.token.instructions import get_associated_token_address
-from model.providers.solana_provider import SolanaProvider
+from src.providers.solana_provider import SolanaProvider
 from config import config
 
 # Configure logging

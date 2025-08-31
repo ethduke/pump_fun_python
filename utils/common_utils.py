@@ -5,7 +5,7 @@ from solana.rpc.commitment import Processed, Confirmed
 from solana.rpc.types import TokenAccountOpts
 from solders.signature import Signature # type: ignore
 from solders.pubkey import Pubkey  # type: ignore
-from model.providers.solana_provider import SolanaProvider
+from src.providers.solana_provider import SolanaProvider
 
 # Configure logging
 logger = logging.getLogger(__name__)

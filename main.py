@@ -8,8 +8,8 @@ import logging
 import sys
 
 from config import Config
-from model.pump_fun.unified_pump_fun import UnifiedPumpFun # type: ignore
-from model.providers.solana_provider import SolanaProvider
+from src.pump_fun.unified_pump_fun import UnifiedPumpFun # type: ignore
+from src.providers.solana_provider import SolanaProvider
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -215,7 +215,7 @@ async def main():
         
         # Test tokens (mix of bonding curve and graduated tokens)
         test_tokens = [
-            "AUXwSCpiCZ8qNfRa6E1MqRzbt4zzCBZoAQRKqwPgpump"
+            "GNWQriPD8w1xuvcP8iemExjZCwXonRw6s9KD34s2pump"
         ]   
 
         await tester.run_multiple_tests(test_tokens)

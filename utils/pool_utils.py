@@ -3,6 +3,7 @@ from solana.rpc.commitment import Processed
 from solana.rpc.async_api import AsyncClient
 from solders.pubkey import Pubkey # type: ignore
 from decimal import Decimal
+from solana.rpc.types import MemcmpOpts # type: ignore
 from config import config
 from spl.token.instructions import (
     get_associated_token_address,
@@ -238,31 +239,15 @@ async def find_pools_by_mint(mint_str: str, async_client: AsyncClient) -> tuple[
     Returns: (found, pool_candidates_list)
     """
     try:
-        try:
-            from solana.rpc.api import MemcmpOpts
-        except ImportError:
-            try:
-                from solana.rpc.types import MemcmpOpts
-            except ImportError:
-                from solders.rpc.filter import Memcmp
-                MemcmpOpts = Memcmp
         
         target_mint = Pubkey.from_string(mint_str)
         
         # Search strategy: Use memcmp to filter pools by base_mint field
         # The base_mint is located at offset 8 + 1 + 2 + 32 = 43 bytes from start
-        try:
-            # Try the newer solders.rpc.filter.Memcmp format
-            mint_filter = MemcmpOpts(
-                offset=43,  # Position of base_mint in pool state
-                bytes_=str(target_mint)
-            )
-        except TypeError:
-            # Fallback to older solana-py format
-            mint_filter = MemcmpOpts(
-                offset=43,  # Position of base_mint in pool state
-                bytes=str(target_mint)
-            )
+        mint_filter = MemcmpOpts(
+            offset=43,  # Position of base_mint in pool state
+            bytes=str(target_mint)
+        )
         
         # Get program accounts with mint filter
         response = await async_client.get_program_accounts(

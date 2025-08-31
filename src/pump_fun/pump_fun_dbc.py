@@ -17,7 +17,7 @@ from solders.pubkey import Pubkey # type: ignore
 from config import config
 from utils.common_utils import confirm_txn, get_token_balance
 from utils.coin_data import get_coin_data, tokens_for_sol
-from model.providers.solana_provider import SolanaProvider
+from src.providers.solana_provider import SolanaProvider
 
 # Configure logging
 logger = logging.getLogger(__name__)
