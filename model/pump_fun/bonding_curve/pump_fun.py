@@ -76,7 +76,7 @@ class PumpFun:
         # New buy order account structure according to IDL:
         # global, fee_recipient, mint, bonding_curve, associated_bonding_curve, 
         # associated_user, user, system_program, token_program, creator_vault, 
-        # event_authority, program, global_volume_accumulator, user_volume_accumulator, user_acc_target
+        # event_authority, program, global_volume_accumulator, user_volume_accumulator
         keys = [
             AccountMeta(pubkey=config.GLOBAL, is_signer=False, is_writable=False),
             AccountMeta(pubkey=config.FEE_RECIPIENT, is_signer=False, is_writable=True),
@@ -91,14 +91,14 @@ class PumpFun:
             AccountMeta(pubkey=config.EVENT_AUTHORITY, is_signer=False, is_writable=False),
             AccountMeta(pubkey=config.PUMP_FUN_PROGRAM, is_signer=False, is_writable=False),
             AccountMeta(pubkey=global_volume_accumulator, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=user_volume_accumulator, is_signer=False, is_writable=True),
-            AccountMeta(pubkey=user, is_signer=True, is_writable=True)  # user_acc_target same as user
+            AccountMeta(pubkey=user_volume_accumulator, is_signer=False, is_writable=True)
         ]
 
         data = bytearray()
         data.extend(bytes.fromhex("66063d1201daebea"))  # buy discriminator
         data.extend(struct.pack('<Q', amount))
         data.extend(struct.pack('<Q', max_sol_cost))
+        data.extend(struct.pack('<?', True))  # track_volume = True
         
         return Instruction(config.PUMP_FUN_PROGRAM, bytes(data), keys)
 

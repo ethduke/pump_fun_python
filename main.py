@@ -215,8 +215,7 @@ async def main():
         
         # Test tokens (mix of bonding curve and graduated tokens)
         test_tokens = [
-            "EDkDcWMPCgP4CAT8JQjd2oeF4TN9akBU21xA8q29pump", 
-            "EucBKGZZgeDgWZ7VMJVfbfA5tkb2mchrRP2KQT88pump"
+            "AUXwSCpiCZ8qNfRa6E1MqRzbt4zzCBZoAQRKqwPgpump"
         ]   
 
         await tester.run_multiple_tests(test_tokens)
